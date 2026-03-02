@@ -11,6 +11,7 @@ on:
       - "xtask/src/**"
       - ".cargo/**"
       - ".github/workflows/build.yaml"
+      - ".github/workflows/test.yaml"
   push:
     branches-ignore:
       - "update-*"
@@ -22,6 +23,7 @@ on:
       - "xtask/src/**"
       - ".cargo/**"
       - ".github/workflows/build.yaml"
+      - ".github/workflows/test.yaml"
 
 jobs:
   test-linux:
@@ -45,6 +47,10 @@ jobs:
       - name: Test Switching to NixOS Configuration
         run: |
           nix run .#nh -- os switch --diff never --dry --no-nom --verbose --file ./test/nixos.nix
+
+      - name: Test Switching to System Manager Configuration
+        run: |
+          nix run .#nh -- system switch --diff never --dry --no-nom --verbose --configuration default --file ./test/system.nix -- --extra-experimental-features 'nix-command flakes'
 
   build-darwin:
     name: "Test NH on Darwin"
@@ -72,4 +78,3 @@ jobs:
           git add flake.nix
           cd ..
           nix run .#nh -- darwin switch --diff never --hostname simple --dry --no-nom --verbose ./flake
-
