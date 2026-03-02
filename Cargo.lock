@@ -1290,6 +1290,7 @@ dependencies = [
  "nh-home",
  "nh-nixos",
  "nh-search",
+ "nh-system",
  "proptest",
  "serial_test",
  "tracing",
@@ -1412,6 +1413,19 @@ dependencies = [
  "textwrap",
  "tracing",
  "yansi",
+]
+
+[[package]]
+name = "nh-system"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "inquire",
+ "nh-core",
+ "nix",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

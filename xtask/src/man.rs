@@ -76,6 +76,11 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
        precedence over NH_FLAKE.",
     ),
     (
+      "NH_SYSTEM_FLAKE",
+      "Command-specific flake reference for nh system commands. Takes \
+       precedence over NH_FLAKE.",
+    ),
+    (
       "NH_SUDO_ASKPASS",
       "Path to a program used as SUDO_ASKPASS when NH self-elevates with sudo.",
     ),
@@ -183,6 +188,10 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
     (
       "Switch to a darwin configuration",
       "nh darwin switch --hostname mymac",
+    ),
+    (
+      "Switch to a system-manager configuration",
+      "nh system switch --configuration default",
     ),
     ("Search for ripgrep", "nh search ripgrep"),
     (

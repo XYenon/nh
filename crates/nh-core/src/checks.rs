@@ -110,6 +110,7 @@ pub fn verify_variables() -> Result<()> {
       if std::env::var("NH_OS_FLAKE").is_err()
         && std::env::var("NH_HOME_FLAKE").is_err()
         && std::env::var("NH_DARWIN_FLAKE").is_err()
+        && std::env::var("NH_SYSTEM_FLAKE").is_err()
       {
         tracing::warn!(
           "nh {} now uses NH_FLAKE instead of FLAKE, please update your \
@@ -577,6 +578,7 @@ mod tests {
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let _guard = EnvGuard::new("FLAKE", "/test/flake");
@@ -602,6 +604,7 @@ mod tests {
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let _guard1 = EnvGuard::new("FLAKE", "/test/flake");
@@ -628,6 +631,7 @@ mod tests {
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let _guard1 = EnvGuard::new("FLAKE", "/test/flake");

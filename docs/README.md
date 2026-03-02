@@ -43,9 +43,10 @@ To get started with NH, skip to the [Usage](#usage) section.
 ## Features
 
 - **Unified CLI**: Consistent, intuitive interface for many **Nix**, **NixOS**,
-  **Home Manager**, and **Darwin** workflows.
-  - **Rich Interface**: Each major function (`os`, `home`, `darwin`, `search`,
-    `clean`) exposes granular subcommands and flags for fine-tuned control.
+  **Home Manager**, **Darwin**, and **System Manager** workflows.
+  - **Rich Interface**: Each major function (`os`, `home`, `darwin`,
+    `system`, `search`, `clean`) exposes granular subcommands and flags for
+    fine-tuned control.
   - **Enhanced Garbage Collection**: `nh clean` extends `nix-collect-garbage`
     with gcroot cleanup, profile targeting, and time-based retention.
   - **Faster Nix Search**: search Nixpkgs via Elasticsearch for faster results
@@ -76,8 +77,9 @@ To get started with NH, skip to the [Usage](#usage) section.
 NH is an _unified_ CLI, meaning it aims to bring together core platform support
 into a single, convenient utility. For the time being, this appears in NH's
 interface as support for **NixOS** (first-class), **Home Manager** and
-**Nix-Darwin**. We hope to provide a familiar, convenient and _good looking_
-interface for users of any and all of those projects.
+**Nix-Darwin**, plus **System Manager**. We hope to provide a familiar,
+convenient and _good looking_ interface for users of any and all of those
+projects.
 
 The familiar interface of NH should not be seen as a weakness, however, as NH is
 NOT a nixos-rebuild wrapper, and is not constrained by the limits of such tools.
@@ -252,7 +254,7 @@ the cleanup process to let you know what is to be cleaned.
 ### Platform Specific Subcommands
 
 Platform specific subcommands are those that implement CLI utilities for
-**NixOS**, **Home Manager** and **Nix-Darwin**.
+**NixOS**, **Home Manager**, **Nix-Darwin**, and **System Manager**.
 
 #### `nh os`
 
@@ -286,6 +288,12 @@ Last but not least, the `nh darwin` subcommand is a pure-rust reimplementation
 of the `darwin-rebuild` script featuring the same additions as `nh os` and
 `nh home`.
 
+#### `nh system`
+
+The `nh system` subcommand provides a native `nh` workflow for
+[`numtide/system-manager`](https://github.com/numtide/system-manager), with
+the familiar `build` and `switch` commands and `nh`-style elevation handling.
+
 [^1]: `nh os` does not yet provide full feature parity with `nixos-rebuild`.
     While a large collection of subcommands have been implemented, you might be
     missing some features. Please visit
@@ -295,11 +303,12 @@ of the `darwin-rebuild` script featuring the same additions as `nh os` and
 
 <!-- markdownlint-disable MD013 -->
 
-| Platform     | Old Command (Without NH)                 | New Command (With NH)          |
-| ------------ | ---------------------------------------- | ------------------------------ |
-| NixOS        | `nixos-rebuild switch --flake .#myHost`  | `nh os switch . -H myHost`     |
-| Darwin       | `darwin-rebuild switch --flake .#myHost` | `nh darwin switch . -H myHost` |
-| Home Manager | `home-manager switch --flake .#myHost`   | `nh home switch . -c myHome`   |
+| Platform       | Old Command (Without NH)                        | New Command (With NH)          |
+| -------------- | ----------------------------------------------- | ------------------------------ |
+| NixOS          | `nixos-rebuild switch --flake .#myHost`         | `nh os switch . -H myHost`     |
+| Darwin         | `darwin-rebuild switch --flake .#myHost`        | `nh darwin switch . -H myHost` |
+| Home Manager   | `home-manager switch --flake .#myHost`          | `nh home switch . -c myHome`   |
+| System Manager | `system-manager switch --flake .#myHost --sudo` | `nh system switch . -c myHost` |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -345,9 +354,10 @@ the common variables that you may encounter or choose to employ are as follows:
     migrate `FLAKE` into `NH_FLAKE` if present and the specific `NH_*_FLAKE`
     vars are not set.
 
-- `NH_OS_FLAKE`, `NH_HOME_FLAKE`, `NH_DARWIN_FLAKE`
-  - Command-specific flake references for `os`, `home`, and `darwin` commands
-    respectively. If present they take precedence over `NH_FLAKE`.
+- `NH_OS_FLAKE`, `NH_HOME_FLAKE`, `NH_DARWIN_FLAKE`, `NH_SYSTEM_FLAKE`
+  - Command-specific flake references for `os`, `home`, `darwin`, and
+    `system` commands respectively. If present they take precedence over
+    `NH_FLAKE`.
 
 - `NH_SUDO_ASKPASS`
   - Path to a program used as `SUDO_ASKPASS` when NH self-elevates with `sudo`.

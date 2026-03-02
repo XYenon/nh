@@ -30,6 +30,7 @@ nh-home = { path = "crates/nh-home" }
 nh-nixos = { path = "crates/nh-nixos" }
 nh-remote = { path = "crates/nh-remote" }
 nh-search = { path = "crates/nh-search" }
+nh-system = { path = "crates/nh-system" }
 nix = { default-features = false, features = [ "fs", "user", "hostname" ], version = "0.31.1" }
 proptest = "1.9.0"
 regex = "1.12.2"
