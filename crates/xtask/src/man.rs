@@ -46,6 +46,11 @@ const ENVIRONMENT: &[Entry] = &[
      precedence over NH_FLAKE.",
   ),
   (
+    "NH_SYSTEM_FLAKE",
+    "Command-specific flake reference for nh system commands. Takes \
+     precedence over NH_FLAKE.",
+  ),
+  (
     "NH_FILE",
     "Preferred path to a directory/file containing a Nix expression. Chosen \
      after os/home/darwin-specific env vars, but before NH_FLAKE.",
@@ -165,6 +170,18 @@ const EXAMPLES: &[Entry] = &[
   (
     "Switch to a darwin configuration",
     "nh darwin switch --hostname mymac",
+  ),
+  (
+    "Switch to a system-manager configuration",
+    "nh system switch . --configuration default",
+  ),
+  (
+    "Deploy a system-manager configuration remotely",
+    "nh system switch . --configuration default --target-host user@host",
+  ),
+  (
+    "Build a system-manager configuration on a remote builder",
+    "nh system build . --configuration default --build-host user@builder",
   ),
   ("Search for ripgrep", "nh search ripgrep"),
   (

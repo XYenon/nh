@@ -110,6 +110,7 @@ pub fn verify_variables() -> Result<()> {
       if std::env::var("NH_OS_FLAKE").is_err()
         && std::env::var("NH_HOME_FLAKE").is_err()
         && std::env::var("NH_DARWIN_FLAKE").is_err()
+        && std::env::var("NH_SYSTEM_FLAKE").is_err()
       {
         tracing::warn!(
           "nh {} now uses NH_FLAKE instead of FLAKE, please update your \
@@ -282,6 +283,18 @@ impl FeatureRequirements for DarwinReplFeatures {
   }
 }
 
+/// Feature requirements for system-manager repl commands
+#[derive(Debug)]
+pub struct SystemReplFeatures {
+  pub is_flake: bool,
+}
+
+impl FeatureRequirements for SystemReplFeatures {
+  fn required_features(&self) -> &'static [&'static str] {
+    required_repl_features(self.is_flake)
+  }
+}
+
 /// Feature requirements for commands that don't need experimental features
 #[derive(Debug)]
 pub struct NoFeatures;
@@ -434,10 +447,14 @@ mod tests {
           let darwin_features = DarwinReplFeatures { is_flake };
           let darwin_result = darwin_features.required_features();
 
+          // Test System repl features
+          let system_features = SystemReplFeatures { is_flake };
+          let system_result = system_features.required_features();
+
           if is_flake {
               // Property: All flake repls should have consistent base features
               // (when features are required, they should include nix-command and flakes)
-              for result in [os_result, home_result, darwin_result] {
+              for result in [os_result, home_result, darwin_result, system_result] {
                   if !result.is_empty() {
                       prop_assert!(result.contains(&"nix-command"));
                       prop_assert!(result.contains(&"flakes"));
@@ -445,12 +462,15 @@ mod tests {
               }
 
               // Property: Only OS repl may have additional features (repl-flake for older Lix)
-              // Home and Darwin should never have more than the base features
+              // Home, Darwin, and System should never have more than the base features
               if !home_result.is_empty() {
                   prop_assert_eq!(home_result.len(), 2);
               }
               if !darwin_result.is_empty() {
                   prop_assert_eq!(darwin_result.len(), 2);
+              }
+              if !system_result.is_empty() {
+                  prop_assert_eq!(system_result.len(), 2);
               }
 
               // Property: OS repl may have 2 or 3 features (base + optional repl-flake)
@@ -465,6 +485,7 @@ mod tests {
               prop_assert!(os_result.is_empty());
               prop_assert!(home_result.is_empty());
               prop_assert!(darwin_result.is_empty());
+              prop_assert!(system_result.is_empty());
           }
       }
 
@@ -478,6 +499,7 @@ mod tests {
               Box::new(OsReplFeatures { is_flake }) as Box<dyn FeatureRequirements>,
               Box::new(HomeReplFeatures { is_flake }) as Box<dyn FeatureRequirements>,
               Box::new(DarwinReplFeatures { is_flake }) as Box<dyn FeatureRequirements>,
+              Box::new(SystemReplFeatures { is_flake }) as Box<dyn FeatureRequirements>,
               Box::new(NoFeatures) as Box<dyn FeatureRequirements>,
           ];
 
@@ -541,6 +563,7 @@ mod tests {
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let _guard = EnvGuard::new("FLAKE", "/test/flake");
@@ -566,6 +589,7 @@ mod tests {
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let _guard1 = EnvGuard::new("FLAKE", "/test/flake");
@@ -592,6 +616,7 @@ mod tests {
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let _guard1 = EnvGuard::new("FLAKE", "/test/flake");

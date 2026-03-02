@@ -5,7 +5,7 @@ use serial_test::serial;
 use super::*;
 
 struct EnvGuard {
-  saved: [(&'static str, Option<String>); 6],
+  saved: [(&'static str, Option<String>); 7],
 }
 
 impl EnvGuard {
@@ -15,6 +15,7 @@ impl EnvGuard {
       ("NH_OS_FLAKE", env::var("NH_OS_FLAKE").ok()),
       ("NH_HOME_FLAKE", env::var("NH_HOME_FLAKE").ok()),
       ("NH_DARWIN_FLAKE", env::var("NH_DARWIN_FLAKE").ok()),
+      ("NH_SYSTEM_FLAKE", env::var("NH_SYSTEM_FLAKE").ok()),
       ("NH_FILE", env::var("NH_FILE").ok()),
       ("NH_ATTRP", env::var("NH_ATTRP").ok()),
     ];
@@ -590,6 +591,87 @@ fn test_resolve_darwin_context_prefers_darwin_flake_over_generic() {
 }
 
 #[test]
+fn test_resolve_or_default_system_non_unspecified_returns_unchanged() {
+  let flake = Installable::Flake {
+    reference: String::from("github:user/repo"),
+    attribute: vec![String::from("default")],
+  };
+
+  let resolved = specified(flake.clone())
+    .resolve_or_default(CommandContext::System)
+    .unwrap();
+
+  assert_eq!(flake.to_args(), resolved.to_args());
+}
+
+#[test]
+#[serial]
+fn test_resolve_or_default_system_uses_env_before_default() {
+  let env_guard = EnvGuard::clear();
+  env_guard.set("NH_SYSTEM_FLAKE", "~/.config/system-manager#default");
+
+  let resolved = InstallableArgs::Unspecified
+    .resolve_or_default(CommandContext::System)
+    .unwrap();
+
+  match resolved {
+    Installable::Flake {
+      reference,
+      attribute,
+    } => {
+      assert_eq!(reference, "~/.config/system-manager");
+      assert_eq!(attribute, vec!["default"]);
+    },
+    _ => panic!("Expected Flake, got {resolved:?}"),
+  }
+}
+
+#[test]
+#[serial]
+fn test_resolve_system_context_uses_nh_system_flake() {
+  let env_guard = EnvGuard::clear();
+  env_guard.set("NH_SYSTEM_FLAKE", "~/.config/system-manager#default");
+
+  let resolved = InstallableArgs::Unspecified
+    .resolve(CommandContext::System)
+    .unwrap()
+    .unwrap();
+  match resolved {
+    Installable::Flake {
+      reference,
+      attribute,
+    } => {
+      assert_eq!(reference, "~/.config/system-manager");
+      assert_eq!(attribute, vec!["default"]);
+    },
+    _ => panic!("Expected Flake, got {resolved:?}"),
+  }
+}
+
+#[test]
+#[serial]
+fn test_resolve_system_context_prefers_system_flake_over_generic() {
+  let env_guard = EnvGuard::clear();
+  env_guard.set("NH_SYSTEM_FLAKE", "~/.config/system-manager#default");
+  env_guard.set("NH_FLAKE", "/other/flake#other");
+
+  let resolved = InstallableArgs::Unspecified
+    .resolve(CommandContext::System)
+    .unwrap()
+    .unwrap();
+  match resolved {
+    Installable::Flake {
+      reference,
+      attribute,
+    } => {
+      assert_eq!(reference, "~/.config/system-manager");
+      assert_eq!(attribute, vec!["default"]);
+    },
+    _ => panic!("Expected Flake, got {resolved:?}"),
+  }
+}
+
+#[test]
 #[serial]
 fn test_resolve_no_env_vars_returns_unspecified() {
   let _env_guard = EnvGuard::clear();
@@ -606,6 +688,11 @@ fn test_resolve_no_env_vars_returns_unspecified() {
 
   let resolved = InstallableArgs::Unspecified
     .resolve(CommandContext::Darwin)
+    .unwrap();
+  assert!(resolved.is_none());
+
+  let resolved = InstallableArgs::Unspecified
+    .resolve(CommandContext::System)
     .unwrap();
   assert!(resolved.is_none());
 }
@@ -666,6 +753,12 @@ fn test_resolve_command_specific_isolation() {
   // OS context should not pick up NH_HOME_FLAKE
   let resolved = InstallableArgs::Unspecified
     .resolve(CommandContext::Os)
+    .unwrap();
+  assert!(resolved.is_none());
+
+  // System context should not pick up NH_HOME_FLAKE either
+  let resolved = InstallableArgs::Unspecified
+    .resolve(CommandContext::System)
     .unwrap();
   assert!(resolved.is_none());
 

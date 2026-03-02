@@ -1294,6 +1294,7 @@ dependencies = [
  "nh-home",
  "nh-nixos",
  "nh-search",
+ "nh-system",
  "serial_test",
  "tracing",
  "tracing-subscriber",
@@ -1468,6 +1469,22 @@ dependencies = [
  "textwrap",
  "tracing",
  "yansi",
+]
+
+[[package]]
+name = "nh-system"
+version = "4.4.2"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "inquire",
+ "nh-core",
+ "nh-diff",
+ "nh-installable",
+ "nh-remote",
+ "nix",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

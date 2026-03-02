@@ -99,6 +99,10 @@ jobs:
         run: |
           nix run .#nh -- os switch --diff never --dry --no-nom --verbose --file ./test/nixos.nix
 
+      - name: Test Switching to System Manager Configuration
+        run: |
+          nix run .#nh -- system switch --diff never --dry --no-nom --verbose --configuration default --file ./test/system.nix -- --extra-experimental-features 'nix-command flakes'
+
   test-darwin:
     name: Test NH on Darwin
     runs-on: macos-latest

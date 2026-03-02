@@ -1098,12 +1098,15 @@ impl ActivationType {
 /// Represents the target platform for remote operations.
 ///
 /// This enum allows the remote module to support multiple platforms while
-/// keeping the implementation generic. Currently only NixOS is implemented.
-/// Other platforms can be added in the future.
+/// keeping the implementation generic. Other platforms can be added in the
+/// future.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Platform {
   /// NixOS system configuration
   NixOS,
+
+  /// system-manager configuration (non-NixOS systems)
+  SystemManager,
   // TODO: Add Darwin and HomeManager support
   //
   // To add support for other platforms:
@@ -1121,11 +1124,21 @@ pub struct ActivateRemoteConfig {
   /// The target platform for activation
   pub platform: Platform,
 
-  /// The type of activation to perform
+  /// The type of activation to perform.
+  ///
+  /// Only meaningful for [`Platform::NixOS`]; ignored by other platforms.
   pub activation_type: ActivationType,
 
-  /// Whether to install the bootloader during activation
+  /// Whether to install the bootloader during activation.
+  ///
+  /// Only meaningful for [`Platform::NixOS`]; ignored by other platforms.
   pub install_bootloader: bool,
+
+  /// Whether to write under `/run/etc` instead of `/etc` during activation.
+  ///
+  /// Only meaningful for [`Platform::SystemManager`]; ignored by other
+  /// platforms.
+  pub ephemeral: bool,
 
   /// Whether to show output logs during activation
   pub show_logs: bool,
@@ -1136,6 +1149,93 @@ pub struct ActivateRemoteConfig {
   /// - `Some(strategy)`: Use the specified elevation strategy (sudo, doas,
   ///   etc.)
   pub elevation: Option<ElevationStrategy>,
+}
+
+/// Run a store-path command on a remote host, optionally with elevation.
+///
+/// This is used by system-manager style activations where the remote command is
+/// an engine binary inside a copied Nix store path.
+///
+/// # Errors
+///
+/// Returns an error if SSH connection fails or the remote command fails.
+pub fn run_elevated_remote_command(
+  host: &RemoteHost,
+  program: &Path,
+  args: &[String],
+  elevation: Option<ElevationStrategy>,
+  show_output: bool,
+) -> Result<()> {
+  let ssh_opts = get_ssh_opts();
+
+  let sudo_password = if let Some(ref strategy) = elevation {
+    if matches!(
+      strategy,
+      ElevationStrategy::None | ElevationStrategy::Passwordless
+    ) {
+      None
+    } else {
+      let host_str = host.ssh_host();
+      if let Some(cached_password) = get_cached_password(&host_str)? {
+        Some(cached_password)
+      } else {
+        let password =
+          inquire::Password::new(&format!("[sudo] password for {host_str}:"))
+            .without_confirmation()
+            .prompt()
+            .context("Failed to read sudo password")?;
+        if password.is_empty() {
+          bail!("Password cannot be empty");
+        }
+        let secret_password = SecretString::new(password.into());
+        cache_password(&host_str, secret_password.clone())?;
+        Some(secret_password)
+      }
+    }
+  } else {
+    None
+  };
+
+  let program_str = program.to_string_lossy();
+  let quoted_args: Vec<String> =
+    args.iter().map(|arg| shell_quote(arg)).collect::<Vec<_>>();
+  let base_cmd = if quoted_args.is_empty() {
+    shell_quote(&program_str)
+  } else {
+    format!("{} {}", shell_quote(&program_str), quoted_args.join(" "))
+  };
+  let remote_cmd = build_remote_command(elevation.as_ref(), &base_cmd)?;
+
+  let mut ssh_cmd = Exec::cmd("ssh");
+  for opt in &ssh_opts {
+    ssh_cmd = ssh_cmd.arg(opt);
+  }
+  ssh_cmd = ssh_cmd.arg("-T").arg(host.ssh_host()).arg(remote_cmd);
+
+  if let Some(ref password) = sudo_password {
+    ssh_cmd =
+      ssh_cmd.stdin(format!("{}\n", password.expose_secret()).into_bytes());
+  }
+
+  debug!(?ssh_cmd, "Running elevated remote command");
+
+  let capture = ssh_cmd.capture().wrap_err_with(|| {
+    format!("Failed to execute remote command on '{host}'")
+  })?;
+
+  if show_output {
+    println!("{}", capture.stdout_str());
+  }
+
+  if !capture.exit_status.success() {
+    bail!(
+      "Remote command failed on '{}':\n{}",
+      host,
+      capture.stderr_str()
+    );
+  }
+
+  Ok(())
 }
 
 /// Activate a system configuration on a remote host.
@@ -1174,6 +1274,9 @@ pub fn activate_remote_with_build_args(
   match config.platform {
     Platform::NixOS => {
       activate_nixos_remote(host, system_profile, config, build_args)
+    },
+    Platform::SystemManager => {
+      activate_system_manager_remote(host, system_profile, config)
     },
     // TODO:
     // Platform::Darwin => activate_darwin_remote(host, system_profile, config),
@@ -1368,6 +1471,69 @@ fn activate_nixos_remote(
       }
     },
   }
+
+  Ok(())
+}
+
+/// Activate a system-manager configuration on a remote host.
+///
+/// Runs the `system-manager-engine register` followed by
+/// `system-manager-engine activate` commands over SSH, optionally with
+/// privilege elevation.
+///
+/// # Arguments
+///
+/// * `host` - The remote host to activate on
+/// * `store_path` - The built system-manager store path containing
+///   `bin/system-manager-engine`
+/// * `config` - Activation configuration options
+///
+/// # Errors
+///
+/// Returns an error if SSH connection fails or the register/activate commands
+/// fail.
+fn activate_system_manager_remote(
+  host: &RemoteHost,
+  store_path: &Path,
+  config: &ActivateRemoteConfig,
+) -> Result<()> {
+  let engine_path = store_path.join("bin/system-manager-engine");
+  let store_path_arg = store_path.to_string_lossy().into_owned();
+
+  let register_args = vec![
+    String::from("register"),
+    String::from("--store-path"),
+    store_path_arg.clone(),
+  ];
+
+  let mut activate_args = vec![
+    String::from("activate"),
+    String::from("--store-path"),
+    store_path_arg,
+  ];
+  if config.ephemeral {
+    activate_args.push(String::from("--ephemeral"));
+  }
+
+  let elevation = config.elevation.clone();
+
+  run_elevated_remote_command(
+    host,
+    &engine_path,
+    &register_args,
+    elevation.clone(),
+    config.show_logs,
+  )
+  .wrap_err("Failed to register System Manager profile on remote host")?;
+
+  run_elevated_remote_command(
+    host,
+    &engine_path,
+    &activate_args,
+    elevation,
+    config.show_logs,
+  )
+  .wrap_err("System Manager activation failed on remote host")?;
 
   Ok(())
 }
