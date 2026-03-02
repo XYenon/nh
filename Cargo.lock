@@ -1243,6 +1243,7 @@ dependencies = [
  "nh-home",
  "nh-nixos",
  "nh-search",
+ "nh-system",
  "pound",
  "serial_test",
  "tracing",
@@ -1420,6 +1421,22 @@ dependencies = [
  "textwrap",
  "tracing",
  "yansi",
+]
+
+[[package]]
+name = "nh-system"
+version = "4.5.0-beta1"
+dependencies = [
+ "inquire",
+ "misstep",
+ "nh-core",
+ "nh-diff",
+ "nh-installable",
+ "nh-remote",
+ "nix",
+ "pound",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

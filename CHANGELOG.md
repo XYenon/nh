@@ -23,6 +23,9 @@ functionality, under the "Removed" section.
 - `nh os build --dry` now shows what Nix would build or fetch, without building.
   Previously `--dry` had no effect for `nh os build`. Remote hosts are not
   supported.
+- `nh system build --dry` now shows the build plan without building or creating
+  an out-link. Remote hosts are not supported. `nh system switch --dry` still
+  builds without activating.
 - `nh os info` now distinguishes the running generation from the selected boot
   profile; `--json` emits both statuses and generation metadata.
 - Rollback now rejects an explicitly requested specialisation missing from the
@@ -75,6 +78,19 @@ spellings like `on`, `y` or `TRUE` are rejected.
   stale package versions after search.nixos.org moved on
   ([#813](https://github.com/nix-community/nh/issues/813)). The bundled version
   is still used if discovery fails.
+- `nh system` now strips the `.local` suffix from remote hostnames when
+  automatically selecting a System Manager configuration, matching `nh os`.
+- `nh clean all` now includes System Manager profiles under
+  `/nix/var/nix/profiles/system-manager-profiles`, applying the same retention
+  rules and selected-generation protection as other profiles.
+- System Manager remote deployments now use the target host's profile for diffs,
+  including builds whose results stay on the remote host. Automatic diffs skip a
+  missing profile on the first deployment, and query errors are reported.
+- System Manager remote builds no longer repeat the copy to the target host.
+  Results are copied to the local store only for local use, an explicit
+  out-link, or a relay when direct copying fails.
+- System Manager builds now respect `NH_NOM` and disable `nom` by default when
+  output is not a terminal, matching other platform commands.
 
 - NixOS activation now runs in a transient systemd service when systemd is
   available, so switching the system does not terminate its own session. This

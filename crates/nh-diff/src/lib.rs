@@ -128,28 +128,34 @@ pub fn handle_nixos_diff(
     DiffType::Always => {},
   }
 
-  print_nixos_generation_diff(
+  print_generation_diff(
     target_host,
     current_profile,
     target_profile,
-    actual_store_path,
-    out_path,
+    remote_profile_path(out_path, target_profile, actual_store_path),
   )
 }
 
-fn print_nixos_generation_diff(
+/// Print a generation diff against a local or remote current profile.
+///
+/// `remote_profile` selects the new generation on the target host. When it is
+/// `None`, the new generation is queried in the local store at
+/// `target_profile`.
+///
+/// # Errors
+///
+/// Returns an error if either store cannot be queried or the report cannot be
+/// written.
+pub fn print_generation_diff(
   target_host: Option<&RemoteHost>,
   current_profile: &Path,
   target_profile: &Path,
-  actual_store_path: Option<&Path>,
-  out_path: &Path,
+  remote_profile: Option<PathBuf>,
 ) -> Result<()> {
   let Some(target_host) = target_host else {
     return print_dix_diff(current_profile, target_profile);
   };
 
-  let remote_profile =
-    remote_profile_path(out_path, target_profile, actual_store_path);
   let message = if remote_profile.is_some() {
     format!("Gathering system diff data from remote host '{target_host}'...")
   } else {
@@ -160,7 +166,7 @@ fn print_nixos_generation_diff(
   };
 
   let spinner = progress::spinner(message);
-  let diff = query_remote_nixos_diff(
+  let diff = query_remote_diff(
     target_host,
     current_profile,
     target_profile,
@@ -171,7 +177,7 @@ fn print_nixos_generation_diff(
   diff?.write()
 }
 
-fn query_remote_nixos_diff(
+fn query_remote_diff(
   target_host: &RemoteHost,
   current_profile: &Path,
   target_profile: &Path,

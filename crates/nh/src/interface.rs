@@ -3,6 +3,7 @@ use nh_core::{
   command::ElevationStrategy,
 };
 use nh_nixos;
+use nh_system;
 use pound::Parse;
 
 use crate::Result;
@@ -80,6 +81,13 @@ pub enum NHCommand {
     #[pound(flatten)]
     args: nh_clean::args::CleanProxy,
   },
+  /// System Manager functionality
+  ///
+  /// Activate services/config on non-NixOS systems via System Manager
+  System {
+    #[pound(flatten)]
+    args: nh_system::args::SystemArgs,
+  },
 }
 
 impl NHCommand {
@@ -89,6 +97,7 @@ impl NHCommand {
       Self::Os { args } => args.get_feature_requirements(),
       Self::Home { args } => args.get_feature_requirements(),
       Self::Darwin { args } => args.get_feature_requirements(),
+      Self::System { args } => args.get_feature_requirements(),
       Self::Search { .. } | Self::Clean { .. } => Box::new(NoFeatures),
     }
   }
@@ -110,6 +119,7 @@ impl NHCommand {
       Self::Clean { args: proxy } => proxy.command.run(elevation),
       Self::Home { args } => args.run(),
       Self::Darwin { args } => args.run(elevation),
+      Self::System { args } => args.run(elevation),
     }
   }
 }
@@ -158,6 +168,7 @@ mod tests {
         NHCommand::Os { .. }
         | NHCommand::Home { .. }
         | NHCommand::Darwin { .. }
+        | NHCommand::System { .. }
         | NHCommand::Search { .. } => None,
       }
     };

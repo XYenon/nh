@@ -27,6 +27,15 @@ pub fn installable_for(context: CommandContext) -> Result<Installable> {
         "NH_DARWIN_FLAKE",
       )
     },
+    CommandContext::System => {
+      let home = env::var("HOME")
+        .map_err(|_| report!("HOME environment variable not set"))?;
+      flake_installable(
+        &PathBuf::from(home).join(".config/system-manager"),
+        "system",
+        "NH_SYSTEM_FLAKE",
+      )
+    },
   }
 }
 
@@ -279,6 +288,7 @@ mod tests {
       (CommandContext::Os, dir.path().join("system.nix")),
       (CommandContext::Home, dir.path().to_path_buf()),
       (CommandContext::Darwin, dir.path().to_path_buf()),
+      (CommandContext::System, dir.path().to_path_buf()),
     ] {
       let args = InstallableArgs::Specified(file(dir.path().to_path_buf()));
       let installable = args.resolve_or_default(context).unwrap();

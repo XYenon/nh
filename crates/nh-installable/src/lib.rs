@@ -5,8 +5,8 @@ use std::{
 };
 
 use misstep::OptionExt;
-pub use nix_installable::Installable;
-use nix_installable::{parse_attribute, parse_flake_reference};
+use nix_installable::parse_flake_reference;
+pub use nix_installable::{Installable, parse_attribute};
 use pound::{ArgSpec, CommandSpec, ErrorKind, Hint, Kind, Matches, Parse};
 use tracing::debug;
 
@@ -18,6 +18,7 @@ pub enum CommandContext {
   Os,
   Home,
   Darwin,
+  System,
 }
 
 impl CommandContext {
@@ -26,6 +27,7 @@ impl CommandContext {
       Self::Os => "NH_OS_FLAKE",
       Self::Home => "NH_HOME_FLAKE",
       Self::Darwin => "NH_DARWIN_FLAKE",
+      Self::System => "NH_SYSTEM_FLAKE",
     }
   }
 }
@@ -95,7 +97,7 @@ Nix accepts various kinds of installables:
 
 [FLAKEREF[#ATTRPATH]]
     Flake reference with an optional attribute path.
-    [env: NH_FLAKE, NH_OS_FLAKE, NH_HOME_FLAKE, NH_DARWIN_FLAKE]
+    [env: NH_FLAKE, NH_OS_FLAKE, NH_HOME_FLAKE, NH_DARWIN_FLAKE, NH_SYSTEM_FLAKE]
 
 -f, --file <FILE> [ATTRPATH]
     Path to file with an optional attribute path.
@@ -194,8 +196,8 @@ impl InstallableArgs {
   ///
   /// If an installable was supplied on the CLI, returns it as-is. Otherwise,
   /// checks env vars in priority order based on the command context:
-  /// - The command-specific flake env var: `NH_OS_FLAKE`, `NH_HOME_FLAKE`, or
-  ///   `NH_DARWIN_FLAKE`
+  /// - The command-specific flake env var: `NH_OS_FLAKE`, `NH_HOME_FLAKE`,
+  ///   `NH_DARWIN_FLAKE`, or `NH_SYSTEM_FLAKE`
   /// - `NH_FILE`, with `NH_ATTRP` as the optional attribute path
   /// - `NH_FLAKE`
   ///

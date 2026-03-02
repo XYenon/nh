@@ -111,6 +111,7 @@ impl args::CleanMode {
         let paths_to_check = [
           PathBuf::from("/nix/var/nix/profiles"),
           PathBuf::from("/nix/var/nix/profiles/per-user"),
+          PathBuf::from("/nix/var/nix/profiles/system-manager-profiles"),
         ];
 
         profiles.extend(filter_existing_dirs(paths_to_check).flat_map(
@@ -698,6 +699,41 @@ mod tests {
   use std::{fs, os::unix::fs::symlink, time::Duration};
 
   use super::*;
+
+  #[test]
+  fn system_manager_profile_cleanup_preserves_selected_generation() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let profiles_dir = dir.path().join("system-manager-profiles");
+    fs::create_dir(&profiles_dir).expect("profiles directory");
+    let profile = profiles_dir.join("system-manager");
+    for number in 1..=3 {
+      let target = dir.path().join(format!("contents-{number}"));
+      fs::create_dir(&target).expect("contents");
+      symlink(
+        &target,
+        profiles_dir.join(format!("system-manager-{number}-link")),
+      )
+      .expect("generation");
+    }
+    symlink("system-manager-2-link", &profile).expect("profile");
+
+    let profiles = profiles_in_dir(&profiles_dir);
+    assert_eq!(profiles, [profile.clone()]);
+    let generations = cleanable_generations(
+      &profiles[0],
+      0,
+      humantime::Duration::from(Duration::ZERO),
+      false,
+    )
+    .expect("cleanable generations");
+    remove_tagged_generations(&profile, &generations, false)
+      .expect("remove old generations");
+
+    assert!(profile.exists(), "selected profile must remain live");
+    assert!(profiles_dir.join("system-manager-2-link").exists());
+    assert!(!profiles_dir.join("system-manager-1-link").exists());
+    assert!(!profiles_dir.join("system-manager-3-link").exists());
+  }
 
   #[test]
   fn cleaning_rolled_back_profile_requires_opt_in_to_delete_selected() {
