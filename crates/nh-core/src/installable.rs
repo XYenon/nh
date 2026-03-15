@@ -12,6 +12,7 @@ pub enum CommandContext {
   Os,
   Home,
   Darwin,
+  System,
 }
 
 #[derive(Debug, Clone)]
@@ -140,6 +141,7 @@ Nix accepts various kinds of installables:
     [env: NH_OS_FLAKE={}]
     [env: NH_HOME_FLAKE={}]
     [env: NH_DARWIN_FLAKE={}]
+    [env: NH_SYSTEM_FLAKE={}]
 
 {}, {} <FILE> [ATTRPATH]
     Path to file with an optional attribute path.
@@ -156,6 +158,7 @@ Nix accepts various kinds of installables:
             env::var("NH_OS_FLAKE").unwrap_or_default(),
             env::var("NH_HOME_FLAKE").unwrap_or_default(),
             env::var("NH_DARWIN_FLAKE").unwrap_or_default(),
+            env::var("NH_SYSTEM_FLAKE").unwrap_or_default(),
             Paint::new("-f").fg(Color::Yellow),
             Paint::new("--file").fg(Color::Yellow),
             env::var("NH_FILE").unwrap_or_default(),
@@ -277,6 +280,7 @@ impl Installable {
   /// - For NixOS: NH_OS_FLAKE, then NH_FLAKE
   /// - For Home: NH_HOME_FLAKE, then NH_FLAKE
   /// - For Darwin: NH_DARWIN_FLAKE, then NH_FLAKE
+  /// - For System Manager: NH_SYSTEM_FLAKE, then NH_FLAKE
   ///
   /// Returns an error if no installable could be resolved and no default is
   /// available.
@@ -288,6 +292,7 @@ impl Installable {
           CommandContext::Os => "NH_OS_FLAKE",
           CommandContext::Home => "NH_HOME_FLAKE",
           CommandContext::Darwin => "NH_DARWIN_FLAKE",
+          CommandContext::System => "NH_SYSTEM_FLAKE",
         };
         if let Ok(flake) = env::var(specific_var) {
           debug!("Using {specific_var}: {flake}");
@@ -729,6 +734,79 @@ impl Installable {
       },
     }
   }
+
+  /// Attempts to find a default installable for System Manager builds.
+  ///
+  /// Checks if `$HOME/.config/system-manager/flake.nix` exists and returns a
+  /// flake installable pointing to it if found. If the directory is a
+  /// symlink, it is resolved to its canonical path. Otherwise, returns an
+  /// error with instructions on how to specify an installable.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if:
+  ///
+  /// - The `HOME` environment variable is not set
+  /// - No flake is found at `$HOME/.config/system-manager/flake.nix`
+  /// - Permission is denied accessing the path
+  /// - The resolved path contains invalid UTF-8
+  pub fn try_find_default_for_system() -> color_eyre::Result<Self> {
+    use tracing::warn;
+
+    let home = env::var("HOME").map_err(|_| {
+      color_eyre::eyre::eyre!("HOME environment variable not set")
+    })?;
+    let default_dir = PathBuf::from(&home).join(".config/system-manager");
+
+    match resolve_fallback_flake_dir(&default_dir) {
+      Ok(resolved) => {
+        warn!(
+          "No installable was specified, falling back to {}",
+          resolved.display()
+        );
+        Ok(Self::Flake {
+          reference: resolved
+            .to_str()
+            .ok_or_else(|| {
+              color_eyre::eyre::eyre!(
+                "Resolved path {} contains invalid UTF-8",
+                resolved.display()
+              )
+            })?
+            .to_string(),
+          attribute: vec![],
+        })
+      },
+      Err(FallbackError::PermissionDenied(path)) => {
+        Err(color_eyre::eyre::eyre!(
+          "Permission denied accessing {}.\nPlease either:\n- Pass a flake \
+           path as an argument (e.g., 'nh system switch .')\n- Set the \
+           NH_FLAKE environment variable\n- Set the NH_SYSTEM_FLAKE \
+           environment variable\n\n{}",
+          path.display(),
+          FALLBACK_HELP_HINT
+        ))
+      },
+      Err(FallbackError::Io(e)) => {
+        Err(color_eyre::eyre::eyre!(
+          "I/O error accessing {}: {}\n\n{}",
+          default_dir.display(),
+          e,
+          FALLBACK_HELP_HINT
+        ))
+      },
+      Err(FallbackError::NotFound) => {
+        Err(color_eyre::eyre::eyre!(
+          "No installable specified and no flake found at \
+           {}/flake.nix.\nPlease either:\n- Pass a flake path as an argument \
+           (e.g., 'nh system switch .')\n- Set the NH_FLAKE environment \
+           variable\n- Set the NH_SYSTEM_FLAKE environment variable\n\n{}",
+          default_dir.display(),
+          FALLBACK_HELP_HINT
+        ))
+      },
+    }
+  }
 }
 
 #[cfg(test)]
@@ -779,6 +857,7 @@ mod tests {
       env::remove_var("NH_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let resolved = Installable::Unspecified
@@ -973,6 +1052,63 @@ mod tests {
 
   #[test]
   #[serial]
+  fn test_resolve_system_context_uses_nh_system_flake() {
+    // Set only NH_SYSTEM_FLAKE
+    unsafe {
+      env::set_var("NH_SYSTEM_FLAKE", "~/.config/system-manager#default");
+      env::remove_var("NH_FLAKE");
+    }
+
+    let resolved = Installable::Unspecified
+      .resolve(CommandContext::System)
+      .unwrap();
+    match resolved {
+      Installable::Flake {
+        reference,
+        attribute,
+      } => {
+        assert_eq!(reference, "~/.config/system-manager");
+        assert_eq!(attribute, vec!["default"]);
+      },
+      _ => panic!("Expected Flake, got {:?}", resolved),
+    }
+
+    unsafe {
+      env::remove_var("NH_SYSTEM_FLAKE");
+    }
+  }
+
+  #[test]
+  #[serial]
+  fn test_resolve_system_context_prefers_system_flake_over_generic() {
+    // Set both NH_SYSTEM_FLAKE and NH_FLAKE
+    unsafe {
+      env::set_var("NH_SYSTEM_FLAKE", "~/.config/system-manager#default");
+      env::set_var("NH_FLAKE", "/other/flake#other");
+    }
+
+    let resolved = Installable::Unspecified
+      .resolve(CommandContext::System)
+      .unwrap();
+    match resolved {
+      Installable::Flake {
+        reference,
+        attribute,
+      } => {
+        assert_eq!(reference, "~/.config/system-manager");
+        assert_eq!(attribute, vec!["default"]);
+      },
+      _ => panic!("Expected Flake, got {:?}", resolved),
+    }
+
+    unsafe {
+      env::remove_var("NH_SYSTEM_FLAKE");
+      env::remove_var("NH_FLAKE");
+    }
+  }
+
+  #[test]
+  #[serial]
   fn test_resolve_no_env_vars_returns_unspecified() {
     // Clear all env vars
     unsafe {
@@ -980,6 +1116,7 @@ mod tests {
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_HOME_FLAKE");
       env::remove_var("NH_DARWIN_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     let resolved = Installable::Unspecified
@@ -994,6 +1131,11 @@ mod tests {
 
     let resolved = Installable::Unspecified
       .resolve(CommandContext::Darwin)
+      .unwrap();
+    assert!(matches!(resolved, Installable::Unspecified));
+
+    let resolved = Installable::Unspecified
+      .resolve(CommandContext::System)
       .unwrap();
     assert!(matches!(resolved, Installable::Unspecified));
   }
@@ -1064,11 +1206,18 @@ mod tests {
       env::set_var("NH_HOME_FLAKE", "~/.config/home-manager#user");
       env::remove_var("NH_OS_FLAKE");
       env::remove_var("NH_FLAKE");
+      env::remove_var("NH_SYSTEM_FLAKE");
     }
 
     // OS context should not pick up NH_HOME_FLAKE
     let resolved = Installable::Unspecified
       .resolve(CommandContext::Os)
+      .unwrap();
+    assert!(matches!(resolved, Installable::Unspecified));
+
+    // System context should not pick up NH_HOME_FLAKE either
+    let resolved = Installable::Unspecified
+      .resolve(CommandContext::System)
       .unwrap();
     assert!(matches!(resolved, Installable::Unspecified));
 

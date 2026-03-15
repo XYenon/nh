@@ -6,6 +6,7 @@ use nh_core::{
   command::ElevationStrategy,
 };
 use nh_nixos;
+use nh_system;
 
 use crate::Result;
 
@@ -68,6 +69,7 @@ pub enum NHCommand {
   Darwin(nh_darwin::args::DarwinArgs),
   Search(nh_search::args::SearchArgs),
   Clean(nh_clean::args::CleanProxy),
+  System(nh_system::args::SystemArgs),
 }
 
 impl NHCommand {
@@ -77,6 +79,7 @@ impl NHCommand {
       Self::Os(args) => args.get_feature_requirements(),
       Self::Home(args) => args.get_feature_requirements(),
       Self::Darwin(args) => args.get_feature_requirements(),
+      Self::System(args) => args.get_feature_requirements(),
       Self::Search(..) | Self::Clean(..) => Box::new(NoFeatures),
     }
   }
@@ -92,6 +95,7 @@ impl NHCommand {
       Self::Clean(proxy) => proxy.command.run(elevation),
       Self::Home(args) => args.run(),
       Self::Darwin(args) => args.run(elevation),
+      Self::System(args) => args.run(elevation),
     }
   }
 }

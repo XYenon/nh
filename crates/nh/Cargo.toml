@@ -26,6 +26,7 @@ nh-darwin.workspace           = true
 nh-home.workspace             = true
 nh-nixos.workspace            = true
 nh-search.workspace           = true
+nh-system.workspace           = true
 tracing.workspace             = true
 tracing-subscriber.workspace  = true
 yansi.workspace               = true
